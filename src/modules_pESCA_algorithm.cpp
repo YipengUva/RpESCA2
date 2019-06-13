@@ -208,7 +208,20 @@ arma::mat update_B_L1(const arma::mat &JHk,
   return B;
 }
 
-// Group-wise conave L1 norm penalty
+//' Group-wise conave L1 norm penalty
+//'
+//' This is an intermediate step of the algorithm for fitting pESCA model. The
+//' details of this function can be found in ref thesis.
+//'
+//' @inheritParams penalty_concave_L2
+//'
+//' @return This function returns the value of the
+//' group-wise conave L1 norm penalty for the pESCA model
+//'
+//' @examples
+//' \dontrun{
+//' penalty_concave_L1(B_i, fun_concave, gamma, R)
+//' }
 Rcpp::List concave_L1(const arma::mat &B_i,
                       const std::string &fun_name,
                       double gamma){
