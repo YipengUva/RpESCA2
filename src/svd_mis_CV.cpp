@@ -85,7 +85,7 @@ Rcpp::List svd_mis(arma::mat X,
   Rcpp::NumericVector hist_objs, rel_objs;
   
   // initial value of loss function
-  double obj0{0}, obj{0};
+  double obj0{0}, obj{0}, rel_obj{0};
   //obj0 = 0.5 * std::pow(arma::norm(W % (X-Z),"fro"),2);
   //hist_objs.push_back(obj0);
   
@@ -108,10 +108,9 @@ Rcpp::List svd_mis(arma::mat X,
     obj = 0.5 * std::pow(arma::norm(W % (X-Z),"fro"),2);
     
     // reporting
-    double  rel_obj{0};
     if(k !=0) rel_obj = (obj0-obj)/(obj0+1); 
     hist_objs.push_back(obj);
-    rel_objs.push_back(rel_obj);
+    if(k !=0) rel_objs.push_back(rel_obj);
     
     // stopping checks
     if(k != 0 && rel_obj < tol_obj) break;
@@ -150,11 +149,11 @@ Rcpp::List svd_mis(arma::mat X,
 //'
 //' @export
 // [[Rcpp::export]]
-Rcpp::NumericMatrix svd_CV(arma::mat X,
-                  int K, 
-                  Rcpp::NumericVector Rs,
-                  double ratio_mis,
-                  Rcpp::List opts){
+Rcpp::NumericMatrix svd_CV(const arma::mat &X,
+                           int K, 
+                           const Rcpp::NumericVector &Rs,
+                           double ratio_mis,
+                           Rcpp::List opts){
   // structure to hold results
   int length_Rs = Rs.length(); 
   Rcpp::NumericMatrix cvErrors(length_Rs, K+1);
