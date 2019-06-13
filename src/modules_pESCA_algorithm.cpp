@@ -148,4 +148,87 @@ Rcpp::List concave_L2(const arma::mat &B_i,
   return result;
 }
 
+//' Updating loading matrix B with conave L1 norm penalty
+//'
+//' This is an intermediate step of the algorithm for fitting pESCA model. The
+//' details of this function can be found in ref thesis.
+//'
+//' @inheritParams update_B_L2
+//'
+//' @return This function returns the updated loading matrix B.
+//'
+//' @examples
+//' \dontrun{
+//' B <- update_B_L1(JHk,A,B0,Sigmas0,d,
+//'                    fun_concave,alphas,rhos,lambdas,gamma)
+//' }
+arma::mat update_B_L1(const arma::mat &JHk,
+                      const arma::mat &A,
+                      const arma::mat &B0,
+                      const arma::mat &Sigmas0,
+                      const Rcpp::IntegerVector &d,
+                      std::string fun_name,
+                      const Rcpp::NumericVector &alphas,
+                      const Rcpp::NumericVector &rhos,
+                      const Rcpp::NumericVector &lambdas,
+                      double gamma){
+  int sumd = Rcpp::sum(d);
+  int nDataSets = d.length();
+  int n = A.n_rows;
+  int R = A.n_cols;
+  fun_name += "_sg";
+  
+  arma::mat B(size(B0),arma::fill::zeros);
+  for(int i=0; i<nDataSets; ++i){
+    arma::uvec indexes(2);
+    indexes = index_Xi(i,d);
+    const arma::mat &JHk_i = JHk.cols(indexes(0),indexes(1));
+    arma::mat JHkitA = JHk_i.t() * A;
+    double alpha_i = alphas[i];
+    double rho_i = rhos[i];
+    double weight_i = d[i]; // weight for L1 norm 
+    double lambda_i = lambdas[i] * weight_i * alpha_i / rho_i;
+    
+    // form weights of the penalty according to previous sigma0_ir
+    arma::vec sigma0_i = Sigmas0.row(i);
+    arma::vec omega_i  = concave_funs[fun_name](sigma0_i,gamma,1); // weights
+    
+    for(int r=0; r<R; ++r){
+      // proximal operator of L1 norm
+      const arma::vec &JHkitA_r = JHkitA.col(r);
+      double lambda_ir = lambda_i * omega_i(r);
+      
+      arma::vec B_ir_pre = arma::abs(JHkitA_r) - lambda_ir;
+      B_ir_pre.elem(find(B_ir_pre<0)).zeros();
+      arma::vec B_ir = arma::sign(JHkitA_r) * B_ir_pre;
+      B(arma::span(indexes(0),indexes(1)),arma::span(r,r)) = B_ir;
+    }
+  }
+  
+  return B;
+}
 
+// Group-wise conave L1 norm penalty
+Rcpp::List concave_L1(const arma::mat &B_i,
+                      const std::string &fun_name,
+                      double gamma){
+  // the number of PCs
+  int R = B_i.n_cols;
+  
+  // weight for ith data set
+  int weight_i = B_i.n_rows; // weight when L1 norm is used
+  
+  double out{0};
+  arma::vec sigmas(R);
+  for(int r=0; r<R; ++r){
+    const arma::vec &B_ir = B_i.col(r);
+    sigmas(r) = arma::sum(arma::abs(B_ir)); // sigma_{lr} = ||b_{lr}||_1
+  }
+  
+  out += weight_i * arma::sum(concave_funs[fun_name](sigmas,gamma,1));
+  
+  Rcpp::List result = Rcpp::List::create(Rcpp::Named("out") = out,
+                                         Rcpp::Named("sigmas") = sigmas.t());
+  
+  return result;
+}
