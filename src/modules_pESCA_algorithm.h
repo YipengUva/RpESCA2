@@ -13,7 +13,8 @@
 // [[Rcpp::depends(RcppArmadillo)]]
 // [[RcPP::plugins("cpp11")]]
 
-// map function names in string format to the corresponding function pointer
+// map concave function and its supergradient names 
+// in string format to the corresponding function pointer
 std::map<std::string, std::function<arma::vec(arma::vec,double,double)> > concave_funs;
 
 // indexes of the ith data set
