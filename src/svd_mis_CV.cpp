@@ -2,7 +2,7 @@
 #include <math.h>
 #include <RcppArmadillo.h>
 // [[Rcpp::depends(RcppArmadillo)]]
-// [[RcPP::plugins("cpp11")]]
+// [[Rcpp::plugins("cpp11")]]
 
 //' A svd algorithm with the option for missing values.
 //'
@@ -32,30 +32,25 @@
 //'
 //' @export
 // [[Rcpp::export]]
-Rcpp::List svd_mis(arma::mat X,
-                    int R, Rcpp::List opts){
+Rcpp::List svd_mis(arma::mat X, int R, const Rcpp::List &opts){
   // default parameters
-  double tol_obj{0};
-  int maxit{0}, quiet{0};
+  double tol_obj = {1e-6};
+  int maxit = {1000}, quiet = {1};
   if(opts.containsElementNamed("tol_obj")) tol_obj = opts["tol_obj"];
-  else tol_obj = 1e-6;
   if(opts.containsElementNamed("maxit"))    maxit  = opts["maxit"];
-  else maxit   = 1000;
   if(opts.containsElementNamed("quiet"))    quiet  = opts["quiet"];
-  else quiet   = 1;
   
   // form weighting matrix
   int nrows = X.n_rows;
   int ncols = X.n_cols;
-  arma::imat W(nrows,ncols,arma::fill::zeros); // weighting matrix
-  for(int i=0; i<nrows; ++i){
-    for(int j=0; j<ncols; ++j){
+  arma::imat W(nrows, ncols, arma::fill::zeros); // weighting matrix
+  for(int i = 0; i < nrows; ++i){
+    for(int j = 0; j < ncols; ++j){
       if(std::isfinite(X(i,j))){
         W(i,j) = 1;
       }
     }
   }
-  arma::imat W_c = 1-W;
   X.replace(arma::datum::nan, 0); // remove missing elements
   
   // using svds from RSpectra package
@@ -64,9 +59,9 @@ Rcpp::List svd_mis(arma::mat X,
   
   // initialization
   // initial parameters
-  arma::mat U(nrows,R,arma::fill::zeros);
+  arma::mat U(nrows, R, arma::fill::zeros);
   arma::vec S(R, arma::fill::ones); 
-  arma::mat V(ncols,R,arma::fill::zeros);
+  arma::mat V(ncols, R, arma::fill::zeros);
   arma::mat Z(size(X));
   
   if(opts.containsElementNamed("U0")){
@@ -85,32 +80,32 @@ Rcpp::List svd_mis(arma::mat X,
   Rcpp::NumericVector hist_objs, rel_objs;
   
   // initial value of loss function
-  double obj0{0}, obj{0}, rel_obj{0};
+  double obj0 = {0}, obj = {0}, rel_obj = {0};
   //obj0 = 0.5 * std::pow(arma::norm(W % (X-Z),"fro"),2);
   //hist_objs.push_back(obj0);
   
   // iterations
-  int k = 0;
-  while(k<=maxit){
-    if(quiet==0) Rprintf("%i th iteration \n",k);
+  int k = {0};
+  while(k <= maxit){
+    if(quiet == 0) Rprintf("%i th iteration \n", k);
     
     // form Xtilde
-    arma::mat Xtilde = W % X + W_c % Z;
+    arma::mat Xtilde = W % X + (1 - W) % Z;
     
     // update Z
-    Rcpp::List svd_tmp = svds_f(Xtilde,R);
+    Rcpp::List svd_tmp = svds_f(Xtilde, R);
     U = Rcpp::as<arma::mat>(svd_tmp["u"]);
     S = Rcpp::as<arma::vec>(svd_tmp["d"]);
     V = Rcpp::as<arma::mat>(svd_tmp["v"]);
     Z = U * arma::diagmat(S) * V.t();
     
     // new objective value
-    obj = 0.5 * std::pow(arma::norm(W % (X-Z),"fro"),2);
+    obj = 0.5 * std::pow(arma::norm(W % (X - Z),"fro"), 2);
     
     // reporting
-    if(k !=0) rel_obj = (obj0-obj)/(obj0+1); 
+    if(k != 0) rel_obj = (obj0 - obj)/(obj0 + 1); 
     hist_objs.push_back(obj);
-    if(k !=0) rel_objs.push_back(rel_obj);
+    if(k != 0) rel_objs.push_back(rel_obj);
     
     // stopping checks
     if(k != 0 && rel_obj < tol_obj) break;
@@ -162,49 +157,45 @@ Rcpp::NumericMatrix svd_CV(const arma::mat &X,
   arma::uvec non_NaN_ind_vec = arma::find_finite(X);
   int mn_nonNaN = non_NaN_ind_vec.n_rows;
   
-  // K fold cross validation
-  // use opts_inner to do warm start
-  Rcpp::List opts_inner = opts;
-  
-  for(int k=0; k < K; ++k){
+  for(int k = 0; k < K; ++k){
     // seperate the Xtest and Xtrain
     // taken into account the potential problem of NaN
     arma::uvec shuf_ind_vec = arma::shuffle(non_NaN_ind_vec);
-    arma::uvec index_X_test = shuf_ind_vec.rows(1,std::round(ratio_mis*mn_nonNaN));
+    arma::uvec index_X_test = shuf_ind_vec.rows(1, std::round(ratio_mis*mn_nonNaN));
     arma::mat X_train = X;
     (X_train(index_X_test)).fill(arma::datum::nan);
     arma::vec X_test = X(index_X_test);
     
     // for loop
-    for(int j = (length_Rs-1); j>=0; --j){
+    for(int j = (length_Rs - 1); j >= 0; --j){
       int R = Rs(j);
       
       // using the remaining data to construct a SVD model
-      Rcpp::List trainModel = svd_mis(X_train,R,opts_inner);
+      Rcpp::List trainModel = svd_mis(X_train, R, opts);
       arma::mat U = trainModel["U"];
       arma::vec S = trainModel["S"];
       arma::mat V = trainModel["V"];
       arma::mat ZHat = U * diagmat(S) * V.t();
       
       // warm start
-      opts_inner["U0"] = U;
-      opts_inner["S0"] = S;
-      opts_inner["V0"] = V;
+      opts["U0"] = U;
+      opts["S0"] = S;
+      opts["V0"] = V;
       
       // extract the estimated parameters for the prediction of missing elements
       arma::vec X_pred = ZHat(index_X_test);
       
       // compute the prediction error
-      cvErrors(j,k) = 0.5 * std::pow(arma::norm(X_test-X_pred,2),2);
+      cvErrors(j,k) = 0.5 * std::pow(arma::norm(X_test - X_pred, 2), 2);
       cvErrors(j,K) = R;
     }
   }
   
-  Rcpp::CharacterVector col_names(4);
-  for(int k=0; k<K; ++k){
+  Rcpp::CharacterVector col_names(K+1);
+  for(int k = 0; k < K; ++k){
     col_names(k) = std::to_string((k+1)) + " th cv";
   }
-  col_names(3) = "R";
+  col_names(K) = "R";
   Rcpp::colnames(cvErrors) = col_names;
 
   return cvErrors;
