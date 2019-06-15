@@ -80,32 +80,38 @@ void update_B_L2(const arma::mat &JHk,
 }
 
 // Group-wise conave L2 norm penalty
-Rcpp::List penalty_L2(const arma::mat &B_i,
-                      const std::string &fun_concave,
-                      const double &gamma){
+double penalty_L2(const arma::mat &B,
+                  arma::mat &Sigmas,
+                  const Rcpp::IntegerVector &d,
+                  const std::string &fun_concave,
+                  const double &gamma){
 
   // name of concave function
   std::string hfun = fun_concave; 
   
-  // weight for the ith data set
-  double weight_i = std::sqrt(B_i.n_rows); // weight when L2 norm is used
-  
   double out = {0};
   
-  // the number of PCs
-  int R = B_i.n_cols;
-  
-  arma::vec sigmas(R);
-  for(int r = 0; r < R; ++r){
-    const arma::vec &B_ir = B_i.col(r);
-    sigmas(r) = arma::norm(B_ir, 2); // sigma_{lr} = ||b_{lr}||_2
+  int nDataSets = d.length();
+  int R = B.n_cols;
+  for(int i = 0; i < nDataSets; ++i){
+    
+    // index for the ith data set
+    arma::uvec indexes = index_Xi(i, d);
+
+    // weight for the ith data set
+    double weight_i = std::sqrt(d(i)); // weight when L2 norm is used
+    
+    arma::vec sigmas(R);
+    for(int r = 0; r < R; ++r){
+      const arma::vec &B_ir = B(arma::span(indexes(0), indexes(1)), arma::span(r, r));
+      sigmas(r) = arma::norm(B_ir, 2); // sigma_{lr} = ||b_{lr}||_2
+    }
+    
+    out += weight_i * arma::sum(Funs[hfun](sigmas, gamma, 1));
+    Sigmas.row(i) = sigmas.t();
   }
-  
-  out += weight_i * arma::sum(Funs[hfun](sigmas, gamma, 1));
-  
-  Rcpp::List result = Rcpp::List::create(Rcpp::Named("out") = out,
-                                         Rcpp::Named("sigmas") = sigmas.t());
-  return result;
+    
+  return out;  
 }
 
 // Updating loading matrix B when conave L1 norm penalty is used
@@ -152,33 +158,37 @@ void arma::mat update_B_L1(const arma::mat &JHk,
 }
 
 // Group-wise conave L1 norm penalty
-Rcpp::List penalty_L1(const arma::mat &B_i,
-                      const std::string &fun_concave,
-                      const double &gamma){
+double penalty_L1(const arma::mat &B,
+                  arma::mat &Sigmas,
+                  const Rcpp::IntegerVector &d,
+                  const std::string &fun_concave,
+                  const double &gamma){
   
   // name of concave function
   std::string hfun = fun_concave; 
   
-  // weight for ith data set
-  int weight_i = B_i.n_rows; // weight when L1 norm is used
-  
   double out = {0};
   
-  // the number of PCs
-  int R = B_i.n_cols;
-  
-  arma::vec sigmas(R);
-  for(int r = 0; r < R; ++r){
-    const arma::vec &B_ir = B_i.col(r);
-    sigmas(r) = arma::sum(arma::abs(B_ir)); // sigma_{lr} = ||b_{lr}||_1
+  int nDataSets = d.length();
+  int R = B.n_cols;
+  for(int i = 0; i < nDataSets; ++i){
+    // index for the ith data set	
+    arma::uvec indexes = index_Xi(i, d);
+    
+    // weight for the ith data set
+    int weight_i = B_i.n_rows; // weight when L1 norm is used
+    
+    arma::vec sigmas(R);
+    for(int r = 0; r < R; ++r){
+      const arma::vec &B_ir = B(arma::span(indexes(0), indexes(1)), arma::span(r, r));
+      sigmas(r) = arma::sum(arma::abs(B_ir)); // sigma_{lr} = ||b_{lr}||_1
+    }
+    
+    out += weight_i * arma::sum(Funs[hfun](sigmas, gamma, 1));
+    Sigmas.row(i) = sigmas.t();
   }
   
-  out += weight_i * arma::sum(Funs[hfun](sigmas, gamma, 1));
-  
-  Rcpp::List result = Rcpp::List::create(Rcpp::Named("out") = out,
-                                         Rcpp::Named("sigmas") = sigmas.t());
-  
-  return result;
+  return out;
 }
 
 // Updating loading matrix B with the composite concave penalty
@@ -233,33 +243,38 @@ void update_B_composite(const arma::mat &JHk,
 }
 
 // the Composition of group-wise and element-wise conave penalty
-Rcpp::List penalty_composite(const arma::mat &B_i,
-                             const std::string &fun_concave,
-                             const double &gamma){
- 
+double penalty_composite(const arma::mat &B,
+                         arma::mat &Sigmas,
+                         const Rcpp::IntegerVector &d,
+                         const std::string &fun_concave,
+                         const double &gamma){
+
   // name of concave function
-  std::string hfun = fun_concave; 
-  
-  // weight for ith data set
-  int weight_i = B_i.n_rows; // weight when composite L1 norm is used
+  std::string hfun = fun_concave;
   
   double out = {0};
   
-  // the number of PCs
-  int R = B_i.n_cols;
-  
-  arma::vec sigmas(R);
-  for(int r = 0; r < R; ++r){
-    const arma::vec &B_ir = B_i.col(r);
-    sigmas(r) = arma::sum(Funs[hfun](arma::abs(B_ir), gamma, 1)); // composite penalty
+  int nDataSets = d.length();
+  int R = B.n_cols;
+  for(int i = 0; i < nDataSets; ++i){
+    
+    // index for the ith data set
+    arma::uvec indexes = index_Xi(i, d);
+    
+    // weight for the ith data set
+    int weight_i = B_i.n_rows; // weight when composite L1 norm is used
+    
+    arma::vec sigmas(R);
+    for(int r = 0; r < R; ++r){
+      const arma::vec &B_ir = B(arma::span(indexes(0), indexes(1)), arma::span(r, r));
+      sigmas(r) = arma::sum(Funs[hfun](arma::abs(B_ir), gamma, 1)); // composite penalty
+    }
+    
+    out += weight_i * arma::sum(Funs[hfun](sigmas, gamma, 1));
+    Sigmas.row(i) = sigmas.t();
   }
   
-  out += weight_i * arma::sum(Funs[hfun](sigmas, gamma, 1));
-  
-  Rcpp::List result = Rcpp::List::create(Rcpp::Named("out") = out,
-                                         Rcpp::Named("sigmas") = sigmas.t());
-  
-  return result;
+  return out;
 }
 
 
@@ -307,31 +322,35 @@ void update_B_elment(const arma::mat &JHk,
 }
 
 // Element-wise conave penalty
-Rcpp::List penalty_element(const arma::mat &B_i,
-                           const std::string &fun_concave,
-                           const double &gamma){
-
+double penalty_element(const arma::mat &B,
+                       arma::mat &Sigmas,
+                       const Rcpp::IntegerVector &d,
+                       const std::string &fun_concave,
+                       const double &gamma){
   // name of concave function
-  std::string hfun = fun_concave;
-  
-  // weight for the ith data set
-  int weight_i = 1; // weight when element-wise L1 norm is used
+  std::string hfun = fun_concave; 
   
   double out = {0};
   
-  // the number of PCs
-  int R = B_i.n_cols;
-  
-  arma::vec sigmas(R);
-  for(int r = 0; r < R; ++r){
-    const arma::vec &B_ir = B_i.col(r);
-    sigmas(r) = arma::sum(arma::abs(B_ir)); // sigma_{lr} = ||b_{lr}||_1
+  int nDataSets = d.length();
+  int R = B.n_cols;
+  for(int i = 0; i < nDataSets; ++i){
+    
+    // index for the ith data set
+    arma::uvec indexes = index_Xi(i, d);
+    
+    // weight for the ith data set
+    int weight_i = 1; // weight when element-wise L1 norm is used
+    
+    arma::vec sigmas(R);
+    for(int r = 0; r < R; ++r){
+      const arma::vec &B_ir = B(arma::span(indexes(0), indexes(1)), arma::span(r, r));
+      sigmas(r) = arma::sum(arma::abs(B_ir)); // sigma_{lr} = ||b_{lr}||_1
+    }
+    
+    out += weight_i * arma::sum(Funs[hfun](sigmas, gamma, 1));
+    Sigmas.row(i) = sigmas.t();
   }
   
-  out += weight_i * arma::sum(Funs[hfun](sigmas, gamma, 1));
-  
-  Rcpp::List result = Rcpp::List::create(Rcpp::Named("out") = out,
-                                         Rcpp::Named("sigmas") = sigmas.t());
-  
-  return result;
+  return out;
 }

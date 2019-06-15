@@ -77,9 +77,11 @@ void update_B_L2(const arma::mat &JHk,
 #' concave_L2(B_i, fun_concave, gamma, R)
 #' }
 */
-Rcpp::List penalty_L2(const arma::mat &B_i,
-                      const std::string &fun_concave,
-                      const double &gamma);
+double penalty_L2(const arma::mat &B,
+                  arma::mat &Sigmas,
+                  const Rcpp::IntegerVector &d,
+                  const std::string &fun_concave,
+                  const double &gamma);
 
 //' Updating loading matrix B with conave L1 norm penalty
 //'
@@ -120,9 +122,11 @@ void arma::mat update_B_L1(const arma::mat &JHk,
 //' \dontrun{
 //' penalty_concave_L1(B_i, fun_concave, gamma, R)
 //' }
-Rcpp::List penalty_L1(const arma::mat &B_i,
-                      const std::string &fun_concave,
-                      const double &gamma);
+double penalty_L1(const arma::mat &B,
+                  arma::mat &Sigmas,
+                  const Rcpp::IntegerVector &d,
+                  const std::string &fun_concave,
+                  const double &gamma);
 					  
 //' Updating loading matrix B with the composite concave penalty
 //'
@@ -163,9 +167,11 @@ void update_B_composite(const arma::mat &JHk,
 //' \dontrun{
 //' concave_composite(B_i, fun_concave, gamma, R)
 //' }
-Rcpp::List penalty_composite(const arma::mat &B_i,
-                             const std::string &fun_concave,
-                             const double &gamma);							
+double penalty_composite(const arma::mat &B,
+                         arma::mat &Sigmas,
+                         const Rcpp::IntegerVector &d,
+                         const std::string &fun_concave,
+                         const double &gamma);							
 
 //' Updating loading matrix B with the element-wise concave penalty
 //'
@@ -206,8 +212,10 @@ void update_B_elment(const arma::mat &JHk,
 //' \dontrun{
 //' penalty_concave_element(B_i, fun_concave, gamma, R)
 //' }
-Rcpp::List penalty_element(const arma::mat &B_i,
-                           const std::string &fun_concave,
-                           const double &gamma);
+double penalty_element(const arma::mat &B,
+                       arma::mat &Sigmas,
+                       const Rcpp::IntegerVector &d,
+                       const std::string &fun_concave,
+                       const double &gamma);
 						   
 #endif
