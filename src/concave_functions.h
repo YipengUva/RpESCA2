@@ -1,12 +1,12 @@
-#ifndef CONCAVE_PENALTIES_H
-#define CONCAVE_PENALTIES_H
+#ifndef CONCAVE_FUNCTIONS_H
+#define CONCAVE_FUNCTIONS_H
 
 #include <RcppArmadillo.h>
-#include<iostream>
-#include<limits>
-#include<math.h>
+#include <iostream>
+#include <limits>
+#include <math.h>
 // [[Rcpp::depends(RcppArmadillo)]]
-// [[RcPP::plugins("cpp11")]]
+// [[Rcpp::plugins("cpp11")]]
 
 /*
 #' gdp penalty function
@@ -15,7 +15,7 @@
 #' formula is \code{gdp(x) =lambda*log(1+x/gamma)}.
 #' Details can be found in \url{https://arxiv.org/abs/1807.04982}.
 #'
-#' @param x a non-negative numeric value
+#' @param x a non-negative numeric vector
 #' @param gamma hyper-tuning parameter
 #' @param lambda tuning parameter
 #'
@@ -25,7 +25,7 @@
 #' \dontrun{gdp(0:9,gamma=1,lambda=5)}
 */
 inline arma::vec gdp(const arma::vec &x, 
-              double gamma, double lambda){
+                     double gamma, double lambda){
   
   // all elments of x should be nonnegative
   if(x.min() < 0)
@@ -50,7 +50,7 @@ inline arma::vec gdp(const arma::vec &x,
 #' \dontrun{gdp_sg(0:9,gamma=1,lambda=5)}
 */
 inline arma::vec gdp_sg(const arma::vec &x, 
-                  double gamma, double lambda){
+                        double gamma, double lambda){
   
   // all elments of x should be nonnegative
   if(x.min() < 0)
@@ -74,12 +74,12 @@ inline arma::vec gdp_sg(const arma::vec &x,
 #' \dontrun{lq(0:9,gamma=0.5,lambda=5)}
 */
 inline arma::vec lq(const arma::vec &x,
-             double gamma, double lambda){
+                    double gamma, double lambda){
   // all elments of x should be nonnegative
   if(x.min() < 0)
     throw std::range_error("numeric vector x contains negative elements.");
   
-  double epsilon = 0.5*std::numeric_limits<double>::epsilon();
+  double epsilon = 0.5 * std::numeric_limits<double>::epsilon();
   
   return lambda * arma::pow(x+epsilon, gamma);
 }
@@ -102,7 +102,7 @@ inline arma::vec lq(const arma::vec &x,
 #' }
 */
 inline arma::vec lq_sg(const arma::vec &x, 
-                 double gamma, double lambda){
+                       double gamma, double lambda){
   // all elments of x should be nonnegative
   if(x.min() < 0)
     throw std::range_error("numeric vector x contains negative elements.");
@@ -126,23 +126,7 @@ inline arma::vec lq_sg(const arma::vec &x,
 #' \dontrun{scad(0:9,gamma=3.7,lambda=3)}
 */
 arma::vec scad(const arma::vec &x,
-               double gamma, double lambda){
-  // all elments of x should be nonnegative
-  if(x.min() < 0)
-    throw std::range_error("numeric vector x contains negative elements.");
-  
-  arma::vec y = lambda*x;
-  
-  for(int i=0; i<x.n_elem; ++i){
-    if(x[i]>(gamma*lambda)){
-      y[i] = 0.5 * (gamma+1) * std::pow(lambda,2);
-    }else if(x[i]>lambda){
-      y[i] = (-std::pow(x[i],2) + 2*gamma*lambda*x[i] - std::pow(lambda,2))/(2*(gamma-1));
-    }
-  }
-  
-  return y;
-}
+               double gamma, double lambda);
  
 /* 
 #' Super gradient for the SCAD penalty function
@@ -158,25 +142,7 @@ arma::vec scad(const arma::vec &x,
 #' \dontrun{scad_sg(0:9,gamma=3.7,lambda=3)}
 */ 
 arma::vec scad_sg(const arma::vec &x,
-                  double gamma, double lambda){
-  // all elments of x should be nonnegative
-  if(x.min() < 0)
-    throw std::range_error("numeric vector x contains negative elements.");
-  
-  arma::vec y(arma::size(x),arma::fill::ones);
-  y = y*lambda;
-  
-  for(int i=0; i<x.n_elem; ++i){
-    if(x[i]>(gamma*lambda)){
-      y[i] = 0;
-    }else if(x[i]>lambda){
-      y[i] = (gamma*lambda - x[i])/(gamma-1);
-    }
-  }
-  
-  return y;
-}
-
+                  double gamma, double lambda);
 
 #endif
 
