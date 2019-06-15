@@ -7,15 +7,16 @@
 #include <functional>
 #include <math.h>
 #include <algorithm>
-#include "concave_penalties.h"
+#include "concave_functions.h"
 
 #include <RcppArmadillo.h>
 // [[Rcpp::depends(RcppArmadillo)]]
-// [[RcPP::plugins("cpp11")]]
+// [[Rcpp::plugins("cpp11")]]
 
 // map concave function and its supergradient names 
 // in string format to the corresponding function pointer
-std::map<std::string, std::function<arma::vec(arma::vec,double,double)> > concave_funs;
+std::map<std::string, 
+         std::function<arma::vec(arma::vec,double,double)> > Funs;
 
 // indexes of the ith data set
 arma::uvec index_Xi(int i, Rcpp::IntegerVector ds);
@@ -46,16 +47,16 @@ arma::uvec index_Xi(int i, Rcpp::IntegerVector ds);
 #'                    fun_concave,alphas,rhos,lambdas,gamma)
 #' }
  */
-arma::mat update_B_L2(const arma::mat &JHk,
-                      const arma::mat &A,
-                      const arma::mat &B0,
-                      const arma::mat &Sigmas0,
-                      const Rcpp::IntegerVector &d,
-                      std::string fun_name,
-                      const Rcpp::NumericVector &alphas,
-                      const Rcpp::NumericVector &rhos,
-                      const Rcpp::NumericVector &lambdas,
-                      double gamma);
+void update_B_L2(const arma::mat &JHk,
+                 const arma::mat &A,
+                 arma::mat &B,
+                 const arma::mat &Sigmas,
+                 const Rcpp::IntegerVector &d,
+                 const std::string &fun_concave,
+                 const Rcpp::NumericVector &alphas,
+                 const Rcpp::NumericVector &rhos,
+                 const Rcpp::NumericVector &lambdas,
+                 const double &gamma);
 					  
 /*
 #' Group-wise conave L2 norm penalty
@@ -76,9 +77,9 @@ arma::mat update_B_L2(const arma::mat &JHk,
 #' concave_L2(B_i, fun_concave, gamma, R)
 #' }
 */
-Rcpp::List concave_L2(const arma::mat &B_i,
-                      const std::string &fun_name,
-                      double gamma);
+Rcpp::List penalty_L2(const arma::mat &B_i,
+                      const std::string &fun_concave,
+                      const double &gamma);
 
 //' Updating loading matrix B with conave L1 norm penalty
 //'
@@ -94,16 +95,16 @@ Rcpp::List concave_L2(const arma::mat &B_i,
 //' B <- update_B_L1(JHk,A,B0,Sigmas0,d,
 //'                    fun_concave,alphas,rhos,lambdas,gamma)
 //' }
-arma::mat update_B_L1(const arma::mat &JHk,
-                      const arma::mat &A,
-                      const arma::mat &B0,
-                      const arma::mat &Sigmas0,
-                      const Rcpp::IntegerVector &d,
-                      std::string fun_name,
-                      const Rcpp::NumericVector &alphas,
-                      const Rcpp::NumericVector &rhos,
-                      const Rcpp::NumericVector &lambdas,
-                      double gamma);					  
+void arma::mat update_B_L1(const arma::mat &JHk,
+                           const arma::mat &A,
+                           arma::mat &B,
+                           const arma::mat &Sigmas,
+                           const Rcpp::IntegerVector &d,
+                           const std::string &fun_concave,
+                           const Rcpp::NumericVector &alphas,
+                           const Rcpp::NumericVector &rhos,
+                           const Rcpp::NumericVector &lambdas,
+                           const double &gamma);					  
 
 //' Group-wise conave L1 norm penalty
 //'
@@ -119,9 +120,9 @@ arma::mat update_B_L1(const arma::mat &JHk,
 //' \dontrun{
 //' penalty_concave_L1(B_i, fun_concave, gamma, R)
 //' }
-Rcpp::List concave_L1(const arma::mat &B_i,
-                      const std::string &fun_name,
-                      double gamma);
+Rcpp::List penalty_L1(const arma::mat &B_i,
+                      const std::string &fun_concave,
+                      const double &gamma);
 					  
 //' Updating loading matrix B with the composite concave penalty
 //'
@@ -137,16 +138,16 @@ Rcpp::List concave_L1(const arma::mat &B_i,
 //' B <- update_B_composite(JHk,A,B0,Sigmas0,d,
 //'                    fun_concave,alphas,rhos,lambdas,gamma)
 //' }
-arma::mat update_B_composite(const arma::mat &JHk,
-                      const arma::mat &A,
-                      const arma::mat &B0,
-                      const arma::mat &Sigmas0,
-                      const Rcpp::IntegerVector &d,
-                      std::string fun_name,
-                      const Rcpp::NumericVector &alphas,
-                      const Rcpp::NumericVector &rhos,
-                      const Rcpp::NumericVector &lambdas,
-                      double gamma);					  
+void update_B_composite(const arma::mat &JHk,
+                        const arma::mat &A,
+                        arma::mat &B,
+                        const arma::mat &Sigmas,
+                        const Rcpp::IntegerVector &d,
+                        const std::string &fun_concave,
+                        const Rcpp::NumericVector &alphas,
+                        const Rcpp::NumericVector &rhos,
+                        const Rcpp::NumericVector &lambdas,
+                        const double &gamma);					  
 
 //' Composition of group-wise and element-wise conave penalty
 //'
@@ -162,9 +163,9 @@ arma::mat update_B_composite(const arma::mat &JHk,
 //' \dontrun{
 //' concave_composite(B_i, fun_concave, gamma, R)
 //' }
-Rcpp::List concave_composite(const arma::mat &B_i,
-                             const std::string &fun_name,
-                             double gamma);							
+Rcpp::List penalty_composite(const arma::mat &B_i,
+                             const std::string &fun_concave,
+                             const double &gamma);							
 
 //' Updating loading matrix B with the element-wise concave penalty
 //'
@@ -180,16 +181,16 @@ Rcpp::List concave_composite(const arma::mat &B_i,
 //' B <- update_B_element(JHk,A,B0,Sigmas0,d,
 //'                    fun_concave,alphas,rhos,lambdas,gamma)
 //' }
-arma::mat update_B_elment(const arma::mat &JHk,
-                          const arma::mat &A,
-                          const arma::mat &B0,
-                          const arma::mat &Sigmas0,
-                          const Rcpp::IntegerVector &d,
-                          std::string fun_name,
-                          const Rcpp::NumericVector &alphas,
-                          const Rcpp::NumericVector &rhos,
-                          const Rcpp::NumericVector &lambdas,
-                          double gamma);
+void update_B_elment(const arma::mat &JHk,
+                     const arma::mat &A,
+                     arma::mat &B,
+                     const arma::mat &Sigmas,
+                     const Rcpp::IntegerVector &d,
+                     const std::string &fun_concave,
+                     const Rcpp::NumericVector &alphas,
+                     const Rcpp::NumericVector &rhos,
+                     const Rcpp::NumericVector &lambdas,
+                     const double &gamma);
 						  
 //' Element-wise conave penalty
 //'
@@ -205,8 +206,8 @@ arma::mat update_B_elment(const arma::mat &JHk,
 //' \dontrun{
 //' penalty_concave_element(B_i, fun_concave, gamma, R)
 //' }
-Rcpp::List concave_element(const arma::mat &B_i,
-                           const std::string &fun_name,
-                           double gamma);
+Rcpp::List penalty_element(const arma::mat &B_i,
+                           const std::string &fun_concave,
+                           const double &gamma);
 						   
 #endif
