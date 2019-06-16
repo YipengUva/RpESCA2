@@ -13,74 +13,6 @@
 // [[Rcpp::depends(RcppArmadillo)]]
 // [[Rcpp::plugins("cpp11")]]
 
-
-// This is an implementaion of fast verion trace function.
-// This function will compute the trace of two matrices.
-double trace_fast(const arma::mat &X, const arma::mat &Y) {
-  int n = X.n_rows, p = X.n_cols;
-  
-  // X and Y should have same size
-  if ( !(n == Y.n_rows && p == Y.n_cols) )
-    throw std::range_error("The two matrices of a trace function are not equal");
-  
-  if(n > p){
-    return arma::trace(X.t() * Y);
-  }else{
-    return arma::trace(Y * X.t());
-  }
-}
-
-// variation explained ratios
-Rcpp::NumericVector varExp_Gaussian(const arma::mat &X,
-                                    const arma::rowvec &mu,
-                                    const arma::mat &A,
-                                    const arma::mat &B,
-                                    const arma::imat &W){
-  // parameter used
-  int n = X.n_rows;
-  
-  // compute the loglikelihood of mle and null model
-  arma::mat X_centered = X - arma::ones<arma::vec>(n) * mu;
-  arma::mat WX = W % X_centered;
-  
-  // likelihood of the null model
-  double l_null = std::pow(arma::norm(WX, "fro"), 2); // null model
-  
-  // likelihood of the full model
-  arma::mat E_hat = X_centered - A * B.t();
-  arma::mat WE_hat = W % E_hat;
-  double l_model = std::pow(arma::norm(WE_hat, "fro"), 2); // full model
-  
-  // compute the least squares of an individual PC
-  int R = A.n_cols;
-  Rcpp::NumericVector l_PCs(R, 0);
-  
-  for(int r = 0; r < R; ++r){
-    const arma::vec &Ar = A.col(r);
-    const arma::vec &Br = B.col(r);
-    arma::mat WPCr = W % (Ar * Br.t());
-    
-    l_PCs(r) = l_null - 2 * Br.t() * WX.t() * Ar +  Ar.t() * WPCr * Br;
-  }
-  
-  // compute variation explained by each PC
-  Rcpp::NumericVector varExp_PCs = (1 - l_PCs/l_null) * 100;
-  
-  // total variation explained
-  double varExp_total = (1 - l_model/l_null) * 100;
-  varExp_PCs.push_back(varExp_total);
-  
-  // define the column names
-  Rcpp::CharacterVector vec_names(R + 1);
-  for(int r = 0; r < R; ++r){
-    vec_names(r) = std::to_string((r + 1)) + " PC";
-  }
-  vec_names(R) = "total";
-  varExp_PCs.names() = vec_names;
-  
-  return varExp_PCs;
-}
-
 // map the names of update_B steps 
 // in string format to the corresponding function pointer
 std::map<std::string, 
@@ -139,6 +71,7 @@ Rcpp::List pESCA_C(arma::mat X,
                    const Rcpp::List &opts){
   // default parameters
   double tol_obj = {1e-6}, gamma = {1.0};
+  std::string mode = {"fit"};
   int maxit = {1000}, rand_start = {0}, thr_path = {0}, quiet = {1};
   if(opts.containsElementNamed("tol_obj")) tol_obj = opts["tol_obj"];
   if(opts.containsElementNamed("maxit"))    maxit  = opts["maxit"];
@@ -146,6 +79,7 @@ Rcpp::List pESCA_C(arma::mat X,
   if(opts.containsElementNamed("rand_start")) rand_start = opts["rand_start"];
   if(opts.containsElementNamed("thr_path")) thr_path = opts["thr_path"];
   if(opts.containsElementNamed("quiet"))    quiet  = opts["quiet"];
+  if(opts.containsElementNamed("mode"))     mode   = opts["mode"];
   
   // number of data sets, size of each data set
   int nDataSets = d.length(); // number of data sets
@@ -364,12 +298,25 @@ Rcpp::List pESCA_C(arma::mat X,
                                            Rcpp::Named("f_objs")    = f_objs,
                                            Rcpp::Named("g_objs")    = g_objs,
                                            Rcpp::Named("rel_objs")  = rel_objs);
-  Rcpp::List result = Rcpp::List::create(Rcpp::Named("mu") = mu,
-                                         Rcpp::Named("A") = A,
-                                         Rcpp::Named("B") = B,
-                                         Rcpp::Named("Sigmas") = Sigmas,
-                                         Rcpp::Named("iter") = k,
-                                         Rcpp::Named("diagnose") = diagnose);
+  
+  if (mode == "fit"){
+    Rcpp::NumericMatrix NvarExp_PCs = varExp_Gaussian(X, d, mu, A, B, W);
+    Rcpp::List result = Rcpp::List::create(Rcpp::Named("mu") = mu,
+                                           Rcpp::Named("A") = A,
+                                           Rcpp::Named("B") = B,
+                                           Rcpp::Named("Sigmas") = Sigmas,
+                                           Rcpp::Named("iter") = k,
+                                           Rcpp::Named("varExp_PCs") = NvarExp_PCs,
+                                           Rcpp::Named("diagnose") = diagnose);
+  } else{
+    Rcpp::List result = Rcpp::List::create(Rcpp::Named("mu") = mu,
+                                           Rcpp::Named("A") = A,
+                                           Rcpp::Named("B") = B,
+                                           Rcpp::Named("Sigmas") = Sigmas,
+                                           Rcpp::Named("iter") = k,
+                                           Rcpp::Named("diagnose") = diagnose);
+  }
+  
   return result;
   
 }

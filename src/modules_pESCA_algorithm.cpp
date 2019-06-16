@@ -365,3 +365,87 @@ double penalty_element(const arma::mat &B,
   
   return out;
 }
+
+// This is an implementaion of fast verion trace function.
+// This function will compute the trace of two matrices.
+double trace_fast(const arma::mat &X, const arma::mat &Y) {
+  int n = X.n_rows, p = X.n_cols;
+  
+  // X and Y should have same size
+  if ( !(n == Y.n_rows && p == Y.n_cols) )
+    throw std::range_error("The two matrices of a trace function are not equal");
+  
+  if(n > p){
+    return arma::trace(X.t() * Y);
+  }else{
+    return arma::trace(Y * X.t());
+  }
+}
+
+
+// variation explained ratios
+Rcpp::NumericMatrix varExp_Gaussian(const arma::mat &X,
+                                    const Rcpp::IntegerVector &d,
+                                    const arma::rowvec &mu,
+                                    const arma::mat &A,
+                                    const arma::mat &B,
+                                    const arma::imat &W){
+  // parameter used
+  int n = X_i.n_rows;
+  int nDataSets = d.length();
+  int R = A.n_cols;
+  
+  // compute the loglikelihood of mle and null model
+  arma::mat X_centered = X - arma::ones<arma::vec>(n) * mu;
+  arma::mat WX = W % X_centered;
+  
+  arma::mat E_hat = X_centered - A * B.t();
+  arma::mat WE_hat = W % E_hat;
+  
+  Rcpp::NumericMatrix NvarExp_PCs(nDataSets, R+1);
+  
+  for (int i = 0; i < nDataSets; ++i){
+    arma::uvec indexes = index_Xi(i, d);
+    const arma::mat &WX_i = WX.cols(indexes(0), indexes(1));
+    const arma::mat &WE_hat_i = WE_hat.cols(indexes(0), indexes(1));
+    const arma::mat &W_i = W.cols(indexes(0), indexes(1));
+    
+    // likelihood of the null model for ith data set
+    double l_null = std::pow(arma::norm(WX_i, "fro"), 2); // null model
+    
+    // likelihood of the full model for ith data set
+    double l_model = std::pow(arma::norm(WE_hat_i, "fro"), 2); // full model
+    
+    // compute the least squares of an individual PC
+    Rcpp::NumericVector l_PCs(R, 0);
+    
+    for(int r = 0; r < R; ++r){
+      const arma::vec &Ar = A.col(r);
+      arma::vec Bir = B(arma::span(indexes(0), indexes(1)), arma::span(r, r));
+      arma::mat WPCr = W_i % (Ar * Bir.t());
+      
+      l_PCs(r) = l_null - 2 * Bir.t() * WX_i.t() * Ar +  Ar.t() * WPCr * Bir;
+    }
+    
+    // compute variation explained by each PC
+    Rcpp::NumericVector varExp_PCs = (1 - l_PCs/l_null) * 100;
+    
+    // total variation explained
+    double varExp_total = (1 - l_model/l_null) * 100;
+    varExp_PCs.push_back(varExp_total);
+    
+    NvarExp_PCs(i, _) = varExp_PCs;
+  }
+  
+  // define the column names
+  Rcpp::CharacterVector col_names(R + 1);
+  for(int r = 0; r < R; ++r){
+    col_names(r) = std::to_string((r + 1)) + " PC";
+  }
+  col_names(R) = "total";
+  Rcpp::colnames(NvarExp_PCs) = col_names;
+  
+  return NvarExp_PCs;
+}
+
+

@@ -218,5 +218,17 @@ double penalty_element(const arma::mat &B,
 					   const Rcpp::NumericVector &lambdas,
                        const std::string &fun_concave,
                        const double &gamma);
+					   
+// This is an implementaion of fast verion trace function.
+// This function will compute the trace of two matrices.
+double trace_fast(const arma::mat &X, const arma::mat &Y);
+
+// variation explained ratios
+Rcpp::NumericMatrix varExp_Gaussian(const arma::mat &X,
+                                    const Rcpp::IntegerVector &d,
+                                    const arma::rowvec &mu,
+                                    const arma::mat &A,
+                                    const arma::mat &B,
+                                    const arma::imat &W);
 						   
 #endif
