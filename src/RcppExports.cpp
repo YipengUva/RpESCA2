@@ -6,52 +6,56 @@
 
 using namespace Rcpp;
 
+// pESCA_C
+Rcpp::List pESCA_C(arma::mat& X, const Rcpp::IntegerVector& d, const Rcpp::CharacterVector& dataTypes, const Rcpp::NumericVector& lambdas, const std::string& penalty, const std::string& fun_concave, const Rcpp::List& opts);
+RcppExport SEXP _RpESCA2_pESCA_C(SEXP XSEXP, SEXP dSEXP, SEXP dataTypesSEXP, SEXP lambdasSEXP, SEXP penaltySEXP, SEXP fun_concaveSEXP, SEXP optsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::mat& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type d(dSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::CharacterVector& >::type dataTypes(dataTypesSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type lambdas(lambdasSEXP);
+    Rcpp::traits::input_parameter< const std::string& >::type penalty(penaltySEXP);
+    Rcpp::traits::input_parameter< const std::string& >::type fun_concave(fun_concaveSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type opts(optsSEXP);
+    rcpp_result_gen = Rcpp::wrap(pESCA_C(X, d, dataTypes, lambdas, penalty, fun_concave, opts));
+    return rcpp_result_gen;
+END_RCPP
+}
 // svd_mis
-Rcpp::List svd_mis(arma::mat X, int R, Rcpp::List opts);
+Rcpp::List svd_mis(arma::mat X, int R, const Rcpp::List& opts);
 RcppExport SEXP _RpESCA2_svd_mis(SEXP XSEXP, SEXP RSEXP, SEXP optsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< arma::mat >::type X(XSEXP);
     Rcpp::traits::input_parameter< int >::type R(RSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type opts(optsSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type opts(optsSEXP);
     rcpp_result_gen = Rcpp::wrap(svd_mis(X, R, opts));
     return rcpp_result_gen;
 END_RCPP
 }
 // svd_CV
-Rcpp::NumericMatrix svd_CV(arma::mat X, int K, Rcpp::NumericVector Rs, double ratio_mis, Rcpp::List opts);
+Rcpp::NumericMatrix svd_CV(const arma::mat& X, int K, const Rcpp::NumericVector& Rs, double ratio_mis, Rcpp::List opts);
 RcppExport SEXP _RpESCA2_svd_CV(SEXP XSEXP, SEXP KSEXP, SEXP RsSEXP, SEXP ratio_misSEXP, SEXP optsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< arma::mat >::type X(XSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X(XSEXP);
     Rcpp::traits::input_parameter< int >::type K(KSEXP);
-    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type Rs(RsSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type Rs(RsSEXP);
     Rcpp::traits::input_parameter< double >::type ratio_mis(ratio_misSEXP);
     Rcpp::traits::input_parameter< Rcpp::List >::type opts(optsSEXP);
     rcpp_result_gen = Rcpp::wrap(svd_CV(X, K, Rs, ratio_mis, opts));
     return rcpp_result_gen;
 END_RCPP
 }
-// scad_sg
-arma::vec scad_sg(const arma::vec& x, double gamma, double lambda);
-RcppExport SEXP _RpESCA2_scad_sg(SEXP xSEXP, SEXP gammaSEXP, SEXP lambdaSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::vec& >::type x(xSEXP);
-    Rcpp::traits::input_parameter< double >::type gamma(gammaSEXP);
-    Rcpp::traits::input_parameter< double >::type lambda(lambdaSEXP);
-    rcpp_result_gen = Rcpp::wrap(scad_sg(x, gamma, lambda));
-    return rcpp_result_gen;
-END_RCPP
-}
 
 static const R_CallMethodDef CallEntries[] = {
+    {"_RpESCA2_pESCA_C", (DL_FUNC) &_RpESCA2_pESCA_C, 7},
     {"_RpESCA2_svd_mis", (DL_FUNC) &_RpESCA2_svd_mis, 3},
     {"_RpESCA2_svd_CV", (DL_FUNC) &_RpESCA2_svd_CV, 5},
-    {"_RpESCA2_scad_sg", (DL_FUNC) &_RpESCA2_scad_sg, 3},
     {NULL, NULL, 0}
 };
 

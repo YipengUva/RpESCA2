@@ -1,7 +1,6 @@
 #include <iostream>
 #include <string>
 #include <map>
-#include <functional>
 #include <math.h>
 #include <algorithm>
 #include "concave_functions.h"
@@ -12,8 +11,9 @@
 
 // map concave function and its supergradient names 
 // in string format to the corresponding function pointer
-std::map<std::string, 
-         std::function<arma::vec(arma::vec,double,double)> > Funs = 
+typedef arma::vec (*fun_type)(const arma::vec &, double, double);
+
+std::map<std::string, fun_type> Funs = 
   {{"gdp", gdp},
   {"gdp_sg", gdp_sg},
   {"lq", lq},
@@ -81,7 +81,7 @@ void update_B_L2(const arma::mat &JHk,
 
 
 // Updating loading matrix B when conave L1 norm penalty is used
-void arma::mat update_B_L1(const arma::mat &JHk,
+void update_B_L1(const arma::mat &JHk,
                            const arma::mat &A,
                            arma::mat &B,
                            const arma::mat &Sigmas,
@@ -177,7 +177,7 @@ void update_B_composite(const arma::mat &JHk,
 
 
 // Updating loading matrix B with the element-wise concave penalty
-void update_B_elment(const arma::mat &JHk,
+void update_B_element(const arma::mat &JHk,
                      const arma::mat &A,
                      arma::mat &B,
                      const arma::mat &Sigmas,
@@ -256,12 +256,11 @@ double penalty_L2(const arma::mat &B,
   return out;  
 }
 
-
 // Group-wise conave L1 norm penalty
 double penalty_L1(const arma::mat &B,
                   arma::mat &Sigmas,
                   const Rcpp::IntegerVector &d,
-				  const Rcpp::NumericVector &lambdas,
+                  const Rcpp::NumericVector &lambdas,
                   const std::string &fun_concave,
                   const double &gamma){
   
@@ -277,8 +276,8 @@ double penalty_L1(const arma::mat &B,
     arma::uvec indexes = index_Xi(i, d);
     
     // weight for the ith data set
-	double lambda_i = lambdas(i);
-    int weight_i = B_i.n_rows; // weight when L1 norm is used
+    double lambda_i = lambdas(i);
+    int weight_i = d(i); // weight when L1 norm is used
     
     arma::vec sigmas(R);
     for(int r = 0; r < R; ++r){
@@ -293,14 +292,16 @@ double penalty_L1(const arma::mat &B,
   return out;
 }
 
+
+
 // the Composition of group-wise and element-wise conave penalty
 double penalty_composite(const arma::mat &B,
                          arma::mat &Sigmas,
                          const Rcpp::IntegerVector &d,
-						 const Rcpp::NumericVector &lambdas,
+                         const Rcpp::NumericVector &lambdas,
                          const std::string &fun_concave,
                          const double &gamma){
-
+  
   // name of concave function
   std::string hfun = fun_concave;
   
@@ -314,8 +315,8 @@ double penalty_composite(const arma::mat &B,
     arma::uvec indexes = index_Xi(i, d);
     
     // weight for the ith data set
-	double lambda_i = lambdas(i);
-    int weight_i = B_i.n_rows; // weight when composite L1 norm is used
+    double lambda_i = lambdas(i);
+    int weight_i = d(i); // weight when composite L1 norm is used
     
     arma::vec sigmas(R);
     for(int r = 0; r < R; ++r){
@@ -330,11 +331,12 @@ double penalty_composite(const arma::mat &B,
   return out;
 }
 
+
 // Element-wise conave penalty
 double penalty_element(const arma::mat &B,
                        arma::mat &Sigmas,
                        const Rcpp::IntegerVector &d,
-					   const Rcpp::NumericVector &lambdas,
+                       const Rcpp::NumericVector &lambdas,
                        const std::string &fun_concave,
                        const double &gamma){
   // name of concave function
@@ -350,7 +352,7 @@ double penalty_element(const arma::mat &B,
     arma::uvec indexes = index_Xi(i, d);
     
     // weight for the ith data set
-	double lambda_i = lambdas(i);
+    double lambda_i = lambdas(i);
     int weight_i = 1; // weight when element-wise L1 norm is used
     
     arma::vec sigmas(R);
@@ -365,6 +367,7 @@ double penalty_element(const arma::mat &B,
   
   return out;
 }
+
 
 // This is an implementaion of fast verion trace function.
 // This function will compute the trace of two matrices.
@@ -382,6 +385,19 @@ double trace_fast(const arma::mat &X, const arma::mat &Y) {
   }
 }
 
+double trace_fast(const arma::imat &X, const arma::mat &Y) {
+  int n = X.n_rows, p = X.n_cols;
+  
+  // X and Y should have same size
+  if ( !(n == Y.n_rows && p == Y.n_cols) )
+    throw std::range_error("The two matrices of a trace function are not equal");
+  
+  if(n > p){
+    return arma::trace(X.t() * Y);
+  }else{
+    return arma::trace(Y * X.t());
+  }
+}
 
 // variation explained ratios
 Rcpp::NumericMatrix varExp_Gaussian(const arma::mat &X,
@@ -391,50 +407,74 @@ Rcpp::NumericMatrix varExp_Gaussian(const arma::mat &X,
                                     const arma::mat &B,
                                     const arma::imat &W){
   // parameter used
-  int n = X_i.n_rows;
+  int n = X.n_rows;
   int nDataSets = d.length();
   int R = A.n_cols;
   
-  // compute the loglikelihood of mle and null model
+  // cache the temperory results
   arma::mat X_centered = X - arma::ones<arma::vec>(n) * mu;
-  arma::mat WX = W % X_centered;
-  
   arma::mat E_hat = X_centered - A * B.t();
-  arma::mat WE_hat = W % E_hat;
   
+  // structures to hold the results
   Rcpp::NumericMatrix NvarExp_PCs(nDataSets, R+1);
   
-  for (int i = 0; i < nDataSets; ++i){
-    arma::uvec indexes = index_Xi(i, d);
-    const arma::mat &WX_i = WX.cols(indexes(0), indexes(1));
-    const arma::mat &WE_hat_i = WE_hat.cols(indexes(0), indexes(1));
-    const arma::mat &W_i = W.cols(indexes(0), indexes(1));
-    
-    // likelihood of the null model for ith data set
-    double l_null = std::pow(arma::norm(WX_i, "fro"), 2); // null model
-    
-    // likelihood of the full model for ith data set
-    double l_model = std::pow(arma::norm(WE_hat_i, "fro"), 2); // full model
-    
-    // compute the least squares of an individual PC
-    Rcpp::NumericVector l_PCs(R, 0);
-    
-    for(int r = 0; r < R; ++r){
-      const arma::vec &Ar = A.col(r);
-      arma::vec Bir = B(arma::span(indexes(0), indexes(1)), arma::span(r, r));
-      arma::mat WPCr = W_i % (Ar * Bir.t());
+  // if all the elements are non-missing
+  if(W.min() > 0){
+    for(int i = 0; i < nDataSets; ++i){
+      arma::uvec indexes = index_Xi(i, d);
+      const arma::mat &X_i = X_centered.cols(indexes(0), indexes(1));
+      const arma::mat &E_hat_i = E_hat.cols(indexes(0), indexes(1));
       
-      l_PCs(r) = l_null - 2 * Bir.t() * WX_i.t() * Ar +  Ar.t() * WPCr * Bir;
+      // likelihood of the null model for ith data set
+      double l_null = std::pow(arma::norm(X_i, "fro"), 2); // null model
+      
+      // likelihood of the full model for ith data set
+      double l_model = std::pow(arma::norm(E_hat_i, "fro"), 2); // full model
+      
+      // likelihood of the rth component model of ith data set
+      double XitXi_trace = arma::trace(X_i * X_i.t());
+      
+      for(int r = 0; r < R; ++r){
+        const arma::vec &Ar = A.col(r);
+        const arma::vec &Bir = B(arma::span(indexes(0), indexes(1)), arma::span(r, r));
+        
+        double tmp = 0;
+        tmp = XitXi_trace - 2 * (arma::as_scalar(Ar.t() * X_i * Bir)) + arma::as_scalar(Bir.t() * Bir);
+        NvarExp_PCs(i, r) = (1 - tmp/l_null) * 100;
+      }
+      NvarExp_PCs(i, R) = (1 - l_model/l_null) * 100;
     }
+  } else{ // there are missing values
     
-    // compute variation explained by each PC
-    Rcpp::NumericVector varExp_PCs = (1 - l_PCs/l_null) * 100;
+    // cache some tmperory results to accelerate computation
+    arma::mat WX = W % X_centered;
+    arma::mat WE_hat = W % E_hat;
     
-    // total variation explained
-    double varExp_total = (1 - l_model/l_null) * 100;
-    varExp_PCs.push_back(varExp_total);
-    
-    NvarExp_PCs(i, _) = varExp_PCs;
+    for(int i = 0; i < nDataSets; ++i){
+      arma::uvec indexes = index_Xi(i, d);
+      const arma::mat &WX_i = WX.cols(indexes(0), indexes(1));
+      const arma::mat &WE_hat_i = WE_hat.cols(indexes(0), indexes(1));
+      const arma::imat &W_i = W.cols(indexes(0), indexes(1));
+      
+      // likelihood of the null model for ith data set
+      double l_null = std::pow(arma::norm(WX_i, "fro"), 2); // null model
+      
+      // likelihood of the full model for ith data set
+      double l_model = std::pow(arma::norm(WE_hat_i, "fro"), 2); // full model
+      
+      // compute the least squares of an individual PC
+      for(int r = 0; r < R; ++r){
+        const arma::vec &Ar = A.col(r);
+        arma::vec Bir = B(arma::span(indexes(0), indexes(1)), arma::span(r, r));
+        arma::mat WPCr = W_i % (Ar * Bir.t());
+        
+        double tmp = 0;
+        tmp = l_null - 2 * arma::as_scalar((WX_i * Bir).t() * Ar) + 
+                     arma::as_scalar(Ar.t() * WPCr * Bir);
+        NvarExp_PCs(i, r) = (1 - tmp/l_null) * 100;
+      }
+      NvarExp_PCs(i, R) = (1 - l_model/l_null) * 100;
+    }
   }
   
   // define the column names
@@ -444,8 +484,6 @@ Rcpp::NumericMatrix varExp_Gaussian(const arma::mat &X,
   }
   col_names(R) = "total";
   Rcpp::colnames(NvarExp_PCs) = col_names;
-  
+
   return NvarExp_PCs;
 }
-
-

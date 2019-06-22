@@ -1,7 +1,6 @@
 #include <iostream>
 #include <string>
 #include <map>
-#include <functional>
 #include <math.h>
 #include <algorithm>
 
@@ -15,43 +14,45 @@
 
 // map the names of update_B steps 
 // in string format to the corresponding function pointer
-std::map<std::string, 
-         std::function<void(arma::mat, 
-                            arma::mat,
-                            arma::mat,
-                            arma::mat,
-                            Rcpp::IntegerVector,
-                            std::string,
-                            Rcpp::NumericVector,
-                            Rcpp::NumericVector,
-                            Rcpp::NumericVector,
-                            double)> > Update_Bs = 
+typedef void (*update_B_type)(const arma::mat &,
+              const arma::mat &,
+              arma::mat &,
+              const arma::mat &,
+              const Rcpp::IntegerVector &,
+              const std::string &,
+              const Rcpp::NumericVector &,
+              const Rcpp::NumericVector &,
+              const Rcpp::NumericVector &,
+              const double &);
+
+std::map<std::string, update_B_type> Update_Bs = 
                               {{"update_B_L2", update_B_L2},
-                               {"update_B_L1", update_B_L1},
-                               {"update_B_composite", update_B_composite},
-                               {"update_B_elment", update_B_elment}
+                              {"update_B_L1", update_B_L1},
+                              {"update_B_composite", update_B_composite},
+                              {"update_B_element", update_B_element}
                               };
 
 // map the names of used penalty function  
 // in string format to the corresponding function pointer
-std::map<std::string, 
-         std::function<double(arma::mat,
-                              arma::mat,
-                              Rcpp::IntegerVector,
-                              Rcpp::NumericVector,
-                              std::string,
-                              double)> > Penalties = 
+typedef double(*penalty_type)(const arma::mat &,
+                             arma::mat &,
+                             const Rcpp::IntegerVector &,
+                             const Rcpp::NumericVector &,
+                             const std::string &,
+                             const double &);
+
+std::map<std::string, penalty_type> Penalties = 
                                 {{"penalty_L2", penalty_L2},
                                 {"penalty_L1", penalty_L1},
                                 {"penalty_composite", penalty_composite},
                                 {"penalty_element", penalty_element}
                                 };
                                                 
-
 // map the names of the log partitation functions and it gradient   
 // in string format to the corresponding function pointer
-std::map<std::string, 
-         std::function<arma::mat(arma::mat)> > Log_parts =
+typedef arma::mat (*log_part_type)(const arma::mat &);
+
+std::map<std::string, log_part_type > Log_parts =
                                                  {{"log_part_B", log_part_B},
                                                  {"log_part_B_g", log_part_B_g},
                                                  {"log_part_G", log_part_G},
@@ -59,10 +60,40 @@ std::map<std::string,
                                                  {"log_part_P", log_part_P},
                                                  {"log_part_P_g", log_part_P_g}
                                                  };
-
-// pESCA models
+ 
+//' C++ implementation of penalized exponential family simultaneous component analysis (pESCA) model
+//'
+//' This is the main function for construncting a pESCA model on multiple data
+//' sets. The potential different data types in these data sets are tackled by
+//' the assumption of exponential family distribution. Gaussian for quantitative
+//' data, Bernoulli for binary data and Poisson for count data. Although the option
+//' for count data using Poisson distribution is included in the algorithm, we recommend
+//' to do variance stabilizing transformation on the count data, such as Next-Gen
+//' sequencing data, and then use the transformed data as quantitative data sets. The
+//' details of the developed algorithm can be found in \url{https://arxiv.org/abs/1902.06241}.
+//' 
+//' @inheritParams pESCA
+//' 
+//' @param X the matrix to hold all the data sets
+//' @param d the vector to indicate the number of variables in each data set
+//'
+//' @import RSpectra
+//'
+//' @examples
+//' \dontrun{
+//' # Suppose we have three data sets X1, X2, X3
+//' # They are quantitative, quantitative and binary matrices
+//' pESCA_C(X = X, d = d,
+//'               dataTypes = c("G", "G", "B"),
+//'               lambdas = c(20, 20, 10),
+//'               penalty = 'L2',
+//'               fun_concave = 'gdp',
+//'               opts = list())
+//' }
+//'
+//' @export
 // [[Rcpp::export]]
-Rcpp::List pESCA_C(arma::mat X,
+Rcpp::List pESCA_C(arma::mat &X,
                    const Rcpp::IntegerVector &d,
                    const Rcpp::CharacterVector &dataTypes,
                    const Rcpp::NumericVector &lambdas,
@@ -71,15 +102,14 @@ Rcpp::List pESCA_C(arma::mat X,
                    const Rcpp::List &opts){
   // default parameters
   double tol_obj = {1e-6}, gamma = {1.0};
-  std::string mode = {"fit"};
-  int maxit = {1000}, rand_start = {0}, thr_path = {0}, quiet = {1};
+  int maxit = {1000}, rand_start = {0}, thr_path = {0}, quiet = {1}, fit_mode = {1};
   if(opts.containsElementNamed("tol_obj")) tol_obj = opts["tol_obj"];
   if(opts.containsElementNamed("maxit"))    maxit  = opts["maxit"];
   if(opts.containsElementNamed("gamma"))    gamma  = opts["gamma"];
   if(opts.containsElementNamed("rand_start")) rand_start = opts["rand_start"];
   if(opts.containsElementNamed("thr_path")) thr_path = opts["thr_path"];
-  if(opts.containsElementNamed("quiet"))    quiet  = opts["quiet"];
-  if(opts.containsElementNamed("mode"))     mode   = opts["mode"];
+  if(opts.containsElementNamed("quiet"))    quiet = opts["quiet"];
+  if(opts.containsElementNamed("fit_mode")) fit_mode  = opts["fit_mode"];
   
   // number of data sets, size of each data set
   int nDataSets = d.length(); // number of data sets
@@ -87,9 +117,12 @@ Rcpp::List pESCA_C(arma::mat X,
   int sumd = X.n_cols;        // total number of variables
   
   // default dispersion parameters alphas and number of PCs
-  Rcpp::NumericVector alphas(nDataSets, 1);
-  int R = std::round(0.5 * Rcpp::min(n, Rcpp::min(d)));
+  Rcpp::NumericVector alphas(nDataSets);
+  alphas.fill(1);
   if(opts.containsElementNamed("alphas")) alphas = opts["alphas"];
+  
+  int d_min = Rcpp::min(d);
+  int R = std::round(0.5 * ((n < d_min) ? n : d_min));
   if(opts.containsElementNamed("R")) R = opts["R"];
   
   // form weighting matrix
@@ -148,12 +181,9 @@ Rcpp::List pESCA_C(arma::mat X,
   
   arma::mat Theta = arma::ones<arma::vec>(n) * mu + A * B.t();
   
-  // initial value of loss function
-  // specify penalty function
-  std::string pfun = "penalty_" + penalty;
   
-  double f_obj = {0}, g_obj = {0};
-  arma::mat Sigmas(nDataSets, R, arma::fill::zeros);
+  // initial value of loss function
+  double f_obj = {0};
   for(int i = 0; i < nDataSets; ++i){
     arma::uvec indexes = index_Xi(i, d);
     const arma::mat &X_i = X.cols(indexes(0), indexes(1));
@@ -171,6 +201,12 @@ Rcpp::List pESCA_C(arma::mat X,
   
   // penalty for the loading matrix B
   // update Sigmas matrix
+  // specify penalty function
+  std::string pfun = "penalty_" + penalty;
+  
+  double g_obj = {0};
+  arma::mat Sigmas(nDataSets, R, arma::fill::zeros);
+  
   g_obj = Penalties[pfun](B, Sigmas, d, lambdas, fun_concave, gamma);
   
   // record loss and penalty for diagnose purpose
@@ -182,6 +218,7 @@ Rcpp::List pESCA_C(arma::mat X,
   f_objs.push_back(f_obj);    // objective
   g_objs.push_back(g_obj);    // penalty
   hist_objs.push_back(obj0);
+  
   
   // iterations
   int k = {0};
@@ -279,7 +316,7 @@ Rcpp::List pESCA_C(arma::mat X,
     
     // remove the all zeros columns to simplify the computation and save memory
     if(thr_path == 0){
-      auto nonZeros_index = arma::mean(Sigmas,0) > 0;
+      auto nonZeros_index = arma::mean(Sigmas, 0) > 0;
       if(arma::sum(nonZeros_index) > 3){
         A = A.cols(nonZeros_index);
         B = B.cols(nonZeros_index);
@@ -298,32 +335,27 @@ Rcpp::List pESCA_C(arma::mat X,
                                            Rcpp::Named("f_objs")    = f_objs,
                                            Rcpp::Named("g_objs")    = g_objs,
                                            Rcpp::Named("rel_objs")  = rel_objs);
-  
-  if (mode == "fit"){
+  if(fit_mode == 1){
     Rcpp::NumericMatrix NvarExp_PCs = varExp_Gaussian(X, d, mu, A, B, W);
     Rcpp::List result = Rcpp::List::create(Rcpp::Named("mu") = mu,
                                            Rcpp::Named("A") = A,
                                            Rcpp::Named("B") = B,
                                            Rcpp::Named("Sigmas") = Sigmas,
                                            Rcpp::Named("iter") = k,
-                                           Rcpp::Named("varExp_PCs") = NvarExp_PCs,
-                                           Rcpp::Named("diagnose") = diagnose);
-  } else{
+                                           Rcpp::Named("diagnose") = diagnose,
+                                           Rcpp::Named("varExp_PCs") = NvarExp_PCs);
+    return result;
+    
+  }else{
     Rcpp::List result = Rcpp::List::create(Rcpp::Named("mu") = mu,
                                            Rcpp::Named("A") = A,
                                            Rcpp::Named("B") = B,
                                            Rcpp::Named("Sigmas") = Sigmas,
                                            Rcpp::Named("iter") = k,
                                            Rcpp::Named("diagnose") = diagnose);
+    return result;
   }
-  
-  return result;
-  
 }
-
-
-
-
 
 
 

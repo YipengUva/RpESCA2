@@ -13,11 +13,6 @@
 // [[Rcpp::depends(RcppArmadillo)]]
 // [[Rcpp::plugins("cpp11")]]
 
-// map concave function and its supergradient names 
-// in string format to the corresponding function pointer
-std::map<std::string, 
-         std::function<arma::vec(arma::vec,double,double)> > Funs;
-
 // indexes of the ith data set
 arma::uvec index_Xi(int i, Rcpp::IntegerVector ds);
 
@@ -95,7 +90,7 @@ double penalty_L2(const arma::mat &B,
 //' B <- update_B_L1(JHk,A,B0,Sigmas0,d,
 //'                    fun_concave,alphas,rhos,lambdas,gamma)
 //' }
-void arma::mat update_B_L1(const arma::mat &JHk,
+void update_B_L1(const arma::mat &JHk,
                            const arma::mat &A,
                            arma::mat &B,
                            const arma::mat &Sigmas,
@@ -187,7 +182,7 @@ double penalty_composite(const arma::mat &B,
 //' B <- update_B_element(JHk,A,B0,Sigmas0,d,
 //'                    fun_concave,alphas,rhos,lambdas,gamma)
 //' }
-void update_B_elment(const arma::mat &JHk,
+void update_B_element(const arma::mat &JHk,
                      const arma::mat &A,
                      arma::mat &B,
                      const arma::mat &Sigmas,
@@ -222,6 +217,7 @@ double penalty_element(const arma::mat &B,
 // This is an implementaion of fast verion trace function.
 // This function will compute the trace of two matrices.
 double trace_fast(const arma::mat &X, const arma::mat &Y);
+double trace_fast(const arma::imat &X, const arma::mat &Y);
 
 // variation explained ratios
 Rcpp::NumericMatrix varExp_Gaussian(const arma::mat &X,
@@ -229,6 +225,6 @@ Rcpp::NumericMatrix varExp_Gaussian(const arma::mat &X,
                                     const arma::rowvec &mu,
                                     const arma::mat &A,
                                     const arma::mat &B,
-                                    const arma::imat &W);
+                                    const arma::imat &W);								
 						   
 #endif

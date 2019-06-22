@@ -7,7 +7,8 @@
 
 // SCAD penalty function
 arma::vec scad(const arma::vec &x,
-               double gamma, double lambda){
+               double gamma, 
+			   double lambda){
   // all elments of x should be nonnegative
   if(x.min() < 0)
     throw std::range_error("numeric vector x contains negative elements.");
